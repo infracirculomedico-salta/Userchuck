@@ -1,0 +1,32 @@
+[Unit]
+Description=Webhook WhatsApp Business - Circulo Medico de Salta
+Documentation=file:/opt/userchuck/webhook/main.py
+# El webhook necesita la red levantada para escuchar y para llegar a Oracle.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=userchuck
+Group=userchuck
+WorkingDirectory=/opt/userchuck
+
+# El cliente Oracle en modo thick. webhook/db.py ya le pasa el lib_dir,
+# esto es por si alguna libreria lo busca por su cuenta.
+Environment="LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib"
+
+ExecStart=/opt/userchuck/venv311/bin/uvicorn webhook.main:app --host 127.0.0.1 --port 8000
+
+# Si el proceso se cae, systemd lo levanta solo. Sin esto, Meta reintenta
+# unas horas y despues descarta el evento: mensajes de socios perdidos.
+Restart=always
+RestartSec=5
+
+# Los logs van al journal (journalctl -u cms-webhook) en vez de a un
+# nohup.out que crece sin limite.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cms-webhook
+
+[Install]
+WantedBy=multi-user.target

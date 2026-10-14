@@ -1,0 +1,3 @@
+#!/bin/bash
+# Asistente de envío de WhatsApp: pregunta todo y simula antes de enviar.
+exec /opt/userchuck/venv311/bin/python /opt/userchuck/sender/asistente.py

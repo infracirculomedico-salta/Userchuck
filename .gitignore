@@ -1,0 +1,18 @@
+# Entornos virtuales y caché
+venv/
+venv311/
+__pycache__/
+*.pyc
+
+# Logs y archivos de sesión
+logs/
+nohup.out
+*.log
+.bash_history
+.viminfo
+
+# Datos sensibles (NO subir)
+config/*
+!config/*.example
+contactos/
+.env
