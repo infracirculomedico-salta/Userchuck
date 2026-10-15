@@ -1,8 +1,10 @@
 # Entornos virtuales y caché
 venv/
 venv311/
+.venv/
 __pycache__/
 *.pyc
+*.db
 
 # Logs y archivos de sesión
 logs/

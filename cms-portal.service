@@ -1,0 +1,22 @@
+[Unit]
+Description=Portal Web WhatsApp Business - Circulo Medico de Salta
+After=network.target
+
+[Service]
+Type=simple
+User=userchuck
+WorkingDirectory=/opt/userchuck
+ExecStart=/opt/userchuck/venv311/bin/uvicorn portal.main:app --host 0.0.0.0 --port 8000 --workers 2
+Restart=always
+RestartSec=5
+EnvironmentFile=-/opt/userchuck/config/database.env
+EnvironmentFile=-/opt/userchuck/config/meta.env
+EnvironmentFile=-/opt/userchuck/sender/config/whatsapp.env
+
+# Seguridad y límites
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

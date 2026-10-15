@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal WhatsApp — Círculo Médico de Salta</title>
+  <link rel="stylesheet" href="/static/css/portal.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- SIDEBAR DE NAVEGACIÓN -->
+    <aside class="sidebar">
+      <div class="brand-header">
+        <div class="brand-icon">
+          <i class="fab fa-whatsapp"></i>
+        </div>
+        <div class="brand-text">
+          <h2>Círculo Médico</h2>
+          <span>Salta • WhatsApp Cloud</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a class="nav-item active" data-tab="dashboard">
+          <i class="fas fa-chart-line nav-icon"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-tab="contactos">
+          <i class="fas fa-address-book nav-icon"></i>
+          <span>Contactos y Padrón</span>
+        </a>
+        <a class="nav-item" data-tab="plantillas">
+          <i class="fas fa-layer-group nav-icon"></i>
+          <span>Plantillas & Simulador</span>
+          <span class="nav-badge">6</span>
+        </a>
+        <a class="nav-item" data-tab="campanas">
+          <i class="fas fa-paper-plane nav-icon"></i>
+          <span>Campañas & Envíos</span>
+        </a>
+        <a class="nav-item" data-tab="usuarios">
+          <i class="fas fa-users-cog nav-icon"></i>
+          <span>Usuarios del Sistema</span>
+        </a>
+        <a class="nav-item" data-tab="logs">
+          <i class="fas fa-stream nav-icon"></i>
+          <span>Logs en Vivo</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile-card">
+          <div class="user-avatar" id="user-avatar-initials">CM</div>
+          <div class="user-info">
+            <div class="user-name" id="user-display-name">Cargando...</div>
+            <div class="user-role" id="user-display-role">Operador</div>
+          </div>
+        </div>
+
+        <div class="theme-logout-bar">
+          <button id="btn-toggle-theme" class="btn btn-secondary btn-icon-only" title="Cambiar tema día/noche">
+            <i id="theme-icon" class="fas fa-moon"></i>
+          </button>
+          <button id="btn-logout" class="btn btn-secondary btn-sm" title="Cerrar Sesión">
+            <i class="fas fa-sign-out-alt"></i> Salir
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- WRAPPER PRINCIPAL -->
+    <main class="main-wrapper">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="system-status-indicator">
+            <div class="status-dot"></div>
+            <span>Base de Datos: <strong id="badge-db-engine" class="badge badge-acepto">Oracle (OCI)</strong></span>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button class="btn btn-secondary btn-sm" onclick="abrirModal('modal-subir-csv')">
+            <i class="fas fa-file-upload"></i> Subir CSV
+          </button>
+          <button class="btn btn-whatsapp btn-sm" onclick="abrirWizardCampana()">
+            <i class="fas fa-paper-plane"></i> Nueva Campaña
+          </button>
+        </div>
+      </header>
+
+      <!-- ÁREA DE CONTENIDO -->
+      <div class="content-area">
+
+        <!-- ==========================================
+             SECCIÓN 1: DASHBOARD
+             ========================================== -->
+        <section id="section-dashboard" class="view-section active">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Panel de Comunicaciones WhatsApp</h1>
+              <p class="section-subtitle">Monitoreo de tráfico, entregas y cupo de Meta para el Círculo Médico de Salta</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="cargarDashboard()">
+              <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+          </div>
+
+          <!-- Tarjetas de KPIs -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon-wrap icon-blue">
+                <i class="fas fa-comments"></i>
+              </div>
+              <div class="kpi-data">
+                <div class="kpi-value" id="kpi-total-mensajes">0</div>
+                <div class="kpi-label">Mensajes Registrados</div>
+                <div class="kpi-subtext">Histórico en wsp_log_mensajes</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon-wrap icon-green">
+                <i class="fas fa-arrow-down"></i>
+              </div>
+              <div class="kpi-data">
+                <div class="kpi-value" id="kpi-entrantes">0</div>
+                <div class="kpi-label">Mensajes Entrantes</div>
+                <div class="kpi-subtext">Respuestas y solicitudes de socios</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon-wrap icon-purple">
+                <i class="fas fa-arrow-up"></i>
+              </div>
+              <div class="kpi-data">
+                <div class="kpi-value" id="kpi-salientes">0</div>
+                <div class="kpi-label">Mensajes Salientes</div>
+                <div class="kpi-subtext">Notificaciones institucionales</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon-wrap icon-amber">
+                <i class="fas fa-check-double"></i>
+              </div>
+              <div class="kpi-data">
+                <div class="kpi-value" id="kpi-tasa-entrega">0%</div>
+                <div class="kpi-label">Efectividad de Entrega</div>
+                <div class="kpi-subtext">Lectura confirmada: <strong id="kpi-tasa-lectura">0%</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Límite de 24h Meta -->
+          <div class="card" style="margin-bottom: 28px;">
+            <div class="card-body" style="padding: 20px 24px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div>
+                  <h4 style="font-size:15px; margin-bottom:2px;">
+                    <i class="fab fa-whatsapp" style="color:var(--wsp-green);"></i> Cupo de Conversaciones Meta (Ventana 24h)
+                  </h4>
+                  <p style="font-size:12.5px; color:var(--text-muted);">
+                    Límite inicial de la cuenta: <strong>250 conversaciones / 24 horas</strong>. Se renueva automáticamente por ventana móvil.
+                  </p>
+                </div>
+                <div style="text-align:right;">
+                  <span style="font-size:18px; font-weight:800; color:var(--primary);" id="kpi-24h-usados">0</span>
+                  <span style="font-size:13px; color:var(--text-muted);"> / <span id="kpi-24h-maximo">250</span> usadas</span>
+                  <div style="font-size:11px; color:var(--success); font-weight:600;">
+                    <span id="kpi-24h-disponibles">250</span> conversaciones disponibles
+                  </div>
+                </div>
+              </div>
+              <div class="quota-bar-container">
+                <div class="quota-bar-fill" id="quota-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabla de Últimos Mensajes -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="fas fa-bolt" style="color:var(--warning); margin-right:6px;"></i> Actividad Reciente en Tiempo Real
+              </div>
+              <span class="badge badge-read">Últimos eventos recibidos</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Dirección</th>
+                    <th>Contacto / Socio</th>
+                    <th>Tipo</th>
+                    <th>Mensaje / Contenido</th>
+                    <th>Estado</th>
+                    <th>Fecha y Hora</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-ultimos-mensajes">
+                  <tr>
+                    <td colspan="7" class="text-center py-4">Cargando eventos...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             SECCIÓN 2: CONTACTOS
+             ========================================== -->
+        <section id="section-contactos" class="view-section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Padrón de Contactos y Socios</h1>
+              <p class="section-subtitle">Gestión de archivos CSV, validación de consentimiento (ACEPTO) y normalización telefónica E.164</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <select id="select-archivo-contactos" class="filter-select" onchange="cargarResumenYFilasContactos(this.value)">
+                <!-- Llenado dinámico -->
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="abrirModal('modal-subir-csv')">
+                <i class="fas fa-upload"></i> Subir Archivo
+              </button>
+            </div>
+          </div>
+
+          <!-- Métricas del archivo seleccionado -->
+          <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom:20px;">
+            <div class="kpi-card py-3">
+              <div class="kpi-data">
+                <div class="kpi-value" id="contactos-total">0</div>
+                <div class="kpi-label">Total en Archivo</div>
+              </div>
+            </div>
+            <div class="kpi-card py-3">
+              <div class="kpi-data">
+                <div class="kpi-value text-success" id="contactos-con-acepto">0</div>
+                <div class="kpi-label">Consentimiento (ACEPTO)</div>
+              </div>
+            </div>
+            <div class="kpi-card py-3">
+              <div class="kpi-data">
+                <div class="kpi-value text-muted" id="contactos-excluidos">0</div>
+                <div class="kpi-label">Excluidos (Sin ACEPTO)</div>
+              </div>
+            </div>
+            <div class="kpi-card py-3">
+              <div class="kpi-data">
+                <div class="kpi-value" style="color:var(--primary);" id="contactos-validos">0</div>
+                <div class="kpi-label">Aptos para Envío</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabla de contactos -->
+          <div class="card">
+            <div class="card-body">
+              <div class="table-toolbar">
+                <div class="search-input-wrap">
+                  <i class="fas fa-search search-icon"></i>
+                  <input type="text" id="input-busqueda-contactos" class="search-input" placeholder="Buscar por Nombre, DNI, Matrícula o WhatsApp..." oninput="filtrarTablaContactos()">
+                </div>
+                <select id="filter-consentimiento" class="filter-select" onchange="filtrarTablaContactos()">
+                  <option value="">Todos los consentimientos</option>
+                  <option value="ACEPTO" selected>Solo ACEPTO</option>
+                  <option value="NO ACEPTO">Solo NO ACEPTO</option>
+                </select>
+              </div>
+
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Médico / Socio</th>
+                      <th>Email</th>
+                      <th>Teléfono Original</th>
+                      <th>Teléfono E.164 (+54 9...)</th>
+                      <th>Consentimiento</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-contactos">
+                    <tr><td colspan="7" class="text-center py-4">Cargando socios...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             SECCIÓN 3: PLANTILLAS Y SIMULADOR WHATSAPP
+             ========================================== -->
+        <section id="section-plantillas" class="view-section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Plantillas Oficiales de Meta & Simulador</h1>
+              <p class="section-subtitle">Catálogo de plantillas aprobadas con previsualización en vivo en el celular de WhatsApp</p>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1.2fr 0.8fr; gap:24px; align-items:start;">
+
+            <!-- Columna Izquierda: Grid de Plantillas -->
+            <div>
+              <h3 style="font-size:16px; margin-bottom:14px;">Plantillas Aprobadas para el Círculo Médico</h3>
+              <div id="grid-plantillas" class="templates-grid">
+                <!-- Llenado dinámico -->
+              </div>
+            </div>
+
+            <!-- Columna Derecha: Simulador de Smartphone -->
+            <div>
+              <div class="card" style="margin-bottom:20px;">
+                <div class="card-header">
+                  <div>
+                    <h4 id="simulador-plantilla-titulo" class="card-title">Simulador de Variables</h4>
+                    <small id="simulador-meta-id" class="text-muted">ID Meta: -</small>
+                  </div>
+                  <div id="status-meta-badge">
+                    <button class="btn btn-secondary btn-sm" onclick="verificarPlantillaEnMeta()">
+                      <i class="fas fa-check-circle"></i> Verificar en Meta
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div id="template-vars-inputs">
+                    <!-- Inputs para cada variable -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Smartphone Mockup -->
+              <div class="phone-mockup-wrapper">
+                <div class="phone-device">
+                  <div class="phone-notch">
+                    <div class="notch-camera"></div>
+                  </div>
+                  <div class="phone-screen">
+                    <div class="wsp-header">
+                      <div class="wsp-back-arrow"><i class="fas fa-arrow-left"></i></div>
+                      <div class="wsp-avatar">CMS</div>
+                      <div class="wsp-chat-info">
+                        <div class="wsp-chat-name">
+                          Círculo Médico de Salta
+                          <i class="fas fa-check-circle wsp-verified-badge" title="Canal Verificado"></i>
+                        </div>
+                        <div class="wsp-chat-status">Cuenta de empresa oficial</div>
+                      </div>
+                      <div><i class="fas fa-ellipsis-v"></i></div>
+                    </div>
+
+                    <div class="wsp-chat-body">
+                      <div class="wsp-date-pill">HOY</div>
+                      <div class="wsp-bubble">
+                        <div id="phone-bubble-text">Selecciona una plantilla para previsualizar el mensaje.</div>
+                        <div class="wsp-bubble-meta">
+                          <span>10:30</span>
+                          <span class="wsp-checkmarks"><i class="fas fa-check-double"></i></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ==========================================
+             SECCIÓN 4: CAMPAÑAS Y ENVÍOS
+             ========================================== -->
+        <section id="section-campanas" class="view-section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Campañas y Notificaciones Masivas</h1>
+              <p class="section-subtitle">Historial de envíos, simulación previa sin consumo y auditoría mensaje por mensaje</p>
+            </div>
+            <button class="btn btn-whatsapp" onclick="abrirWizardCampana()">
+              <i class="fas fa-paper-plane"></i> Nueva Campaña
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Historial de Campañas Ejecutadas</div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Nombre de la Campaña</th>
+                    <th>Plantilla</th>
+                    <th>Destinatarios</th>
+                    <th>Exitosos (OK)</th>
+                    <th>Fallidos (Error)</th>
+                    <th>Estado</th>
+                    <th>Fecha de Envío</th>
+                    <th>Auditoría</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-campanas">
+                  <tr><td colspan="8" class="text-center py-4">Cargando historial de campañas...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             SECCIÓN 5: USUARIOS (ADMIN)
+             ========================================== -->
+        <section id="section-usuarios" class="view-section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Administración de Usuarios y Permisos</h1>
+              <p class="section-subtitle">Control de operadores y administradores autorizados para enviar mensajes</p>
+            </div>
+            <button class="btn btn-primary" onclick="abrirModal('modal-nuevo-usuario')">
+              <i class="fas fa-user-plus"></i> Nuevo Usuario
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Nombre y Apellido</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Último Acceso</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-usuarios">
+                  <tr><td colspan="7" class="text-center py-4">Cargando usuarios...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             SECCIÓN 6: LOGS EN VIVO
+             ========================================== -->
+        <section id="section-logs" class="view-section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Registro Completo de Mensajes (Oracle)</h1>
+              <p class="section-subtitle">Auditoría detallada de la tabla wsp_log_mensajes con trazabilidad de WAMID</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="cargarLogsEnVivo()">
+              <i class="fas fa-sync-alt"></i> Refrescar
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <div class="table-toolbar">
+                <div class="search-input-wrap">
+                  <i class="fas fa-search search-icon"></i>
+                  <input type="text" id="input-busqueda-logs" class="search-input" placeholder="Buscar por número o texto..." oninput="cargarLogsEnVivo()">
+                </div>
+                <select id="filter-logs-dir" class="filter-select" onchange="cargarLogsEnVivo()">
+                  <option value="">Todas las direcciones</option>
+                  <option value="ENTRANTE">Solo ENTRANTES (Socios)</option>
+                  <option value="SALIENTE">Solo SALIENTES (Statuses)</option>
+                </select>
+              </div>
+
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID Log</th>
+                      <th>Dirección</th>
+                      <th>Contacto</th>
+                      <th>Tipo</th>
+                      <th>Texto / Detalle</th>
+                      <th>Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-logs-en-vivo">
+                    <tr><td colspan="6" class="text-center py-4">Cargando registros de auditoría...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ===================================================================
+       MODAL 1: SUBIR ARCHIVO CSV
+       =================================================================== -->
+  <div id="modal-subir-csv" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Subir Archivo de Contactos (CSV)</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="cerrarModal('modal-subir-csv')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">
+          El archivo CSV debe contener obligatoriamente las 7 columnas del Círculo Médico:
+          <code>FECHA</code>, <code>MAIL</code>, <code>APEYNOM</code>, <code>DNI</code>, <code>MATRICULA</code>, <code>WHATSAPP</code>, <code>ESTADO_CONSENTIMIENTO</code>.
+        </p>
+
+        <div class="dropzone" onclick="document.getElementById('input-file-csv').click()">
+          <i class="fas fa-cloud-upload-alt dropzone-icon"></i>
+          <h4>Haz clic para seleccionar o arrastra tu archivo CSV aquí</h4>
+          <p class="text-muted" style="font-size:12px; margin-top:4px;">Formatos aceptados: .csv (separador punto y coma, tabulación o coma)</p>
+          <input type="file" id="input-file-csv" accept=".csv" style="display:none;" onchange="subirArchivoCsv()">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modal-subir-csv')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 2: WIZARD DE NUEVA CAMPAÑA
+       =================================================================== -->
+  <div id="modal-wizard-campana" class="modal-overlay">
+    <div class="modal-card" style="max-width:760px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Asistente de Envío de WhatsApp</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="cerrarModal('modal-wizard-campana')">&times;</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Stepper -->
+        <div class="wizard-steps-bar">
+          <div class="wizard-step-node active" data-step="1">
+            <div class="node-circle">1</div>
+            <div class="node-label">Plantilla</div>
+          </div>
+          <div class="wizard-step-node" data-step="2">
+            <div class="node-circle">2</div>
+            <div class="node-label">Contactos</div>
+          </div>
+          <div class="wizard-step-node" data-step="3">
+            <div class="node-circle">3</div>
+            <div class="node-label">Variables</div>
+          </div>
+          <div class="wizard-step-node" data-step="4">
+            <div class="node-circle">4</div>
+            <div class="node-label">Simulación</div>
+          </div>
+        </div>
+
+        <!-- Paso 1: Elegir Plantilla -->
+        <div id="wizard-step-1" class="wizard-step-content">
+          <div class="form-group">
+            <label class="form-label">Selecciona el mensaje de plantilla a enviar:</label>
+            <select id="wizard-select-plantilla" class="form-input">
+              <!-- Dinámico -->
+            </select>
+          </div>
+          <div class="demo-credentials" style="margin-top:14px;">
+            <i class="fas fa-shield-alt"></i> El texto del mensaje está aprobado en Meta Business y solo variarán las variables que definas.
+          </div>
+        </div>
+
+        <!-- Paso 2: Elegir Contactos CSV -->
+        <div id="wizard-step-2" class="wizard-step-content" style="display:none;">
+          <div class="form-group">
+            <label class="form-label">Selecciona el archivo de contactos para esta campaña:</label>
+            <select id="wizard-select-csv" class="form-input">
+              <!-- Dinámico -->
+            </select>
+          </div>
+          <p class="text-muted" style="font-size:12px;">
+            El sistema filtrará automáticamente a los socios con <code>ESTADO_CONSENTIMIENTO = ACEPTO</code> y normalizará sus números a formato internacional (+54 9...).
+          </p>
+        </div>
+
+        <!-- Paso 3: Mapeo de Variables -->
+        <div id="wizard-step-3" class="wizard-step-content" style="display:none;">
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+            Indica de dónde saldrá el valor de cada variable requerida por la plantilla:
+          </p>
+          <div id="wizard-mapping-container">
+            <!-- Dinámico -->
+          </div>
+        </div>
+
+        <!-- Paso 4: Simulación -->
+        <div id="wizard-step-4" class="wizard-step-content" style="display:none;">
+          <div id="wizard-simulacion-results">
+            <!-- Resultados de la simulación -->
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button id="btn-wizard-atras" class="btn btn-secondary" onclick="actualizarPasoWizard(AppState.wizard.paso - 1)" style="display:none;">
+          <i class="fas fa-arrow-left"></i> Anterior
+        </button>
+        <button id="btn-wizard-siguiente" class="btn btn-primary" onclick="actualizarPasoWizard(AppState.wizard.paso + 1)">
+          Siguiente <i class="fas fa-arrow-right"></i>
+        </button>
+        <button id="btn-wizard-enviar" class="btn btn-whatsapp" onclick="confirmarYEnviarCampana()" style="display:none;">
+          <i class="fab fa-whatsapp"></i> Confirmar y Enviar de Verdad
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 3: VER DETALLE DE LOG DE CAMPAÑA
+       =================================================================== -->
+  <div id="modal-ver-log" class="modal-overlay">
+    <div class="modal-card" style="max-width:850px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalle de Auditoría de Envío</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="cerrarModal('modal-ver-log')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Médico / Socio</th>
+                <th>Número Original</th>
+                <th>Número E.164</th>
+                <th>Resultado</th>
+                <th>Detalle / WAMID</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-modal-log">
+              <!-- Dinámico -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modal-ver-log')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       MODAL 4: NUEVO USUARIO
+       =================================================================== -->
+  <div id="modal-nuevo-usuario" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Registrar Nuevo Usuario</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="cerrarModal('modal-nuevo-usuario')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nombre de Usuario (Login)</label>
+          <input type="text" id="input-user-username" class="form-input" placeholder="ej: jcarlos">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre y Apellido Completo</label>
+          <input type="text" id="input-user-nombre" class="form-input" placeholder="ej: Juan Carlos Pérez">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Correo Electrónico</label>
+          <input type="email" id="input-user-email" class="form-input" placeholder="ej: jperez@cirmedsa.org.ar">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rol y Permisos</label>
+          <select id="input-user-rol" class="form-input">
+            <option value="OPERADOR" selected>Operador (Envío de campañas y consulta de contactos)</option>
+            <option value="ADMIN">Administrador (Control total y gestión de usuarios)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña</label>
+          <input type="password" id="input-user-password" class="form-input" placeholder="Mínimo 6 caracteres">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modal-nuevo-usuario')">Cancelar</button>
+        <button class="btn btn-primary" onclick="crearNuevoUsuario()">Guardar Usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/portal.js"></script>
+</body>
+</html>
