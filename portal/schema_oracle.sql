@@ -35,7 +35,7 @@ VALUES (
     'Administrador General CMS',
     'admin@cirmedsa.org.ar',
     'ADMIN',
-    'e98a1a3da24a737f26487ff7aa1ec52cbb9a37e94bcbc57dd7bb492164a2f2fe',
+    '35de4a79d73064a72bf00b55f2fed78bd449a4ada2186117e13c261fcf4fe590',
     '9d74e3bf604b771344fa036a147d34be',
     1
 );
@@ -47,7 +47,7 @@ VALUES (
     'Operador de Comunicaciones CMS',
     'operador@cirmedsa.org.ar',
     'OPERADOR',
-    '9574ef821896cb4d5a9fa1ebaa8c0d9a6ca238a3cae313eb194cbce6f7f2b960',
+    'd1eaaa5b774a1f728d35a7d80b24c02d5a7c9a98995f012f1e89f5c6bc2ec026',
     '1524e931fa3c9d78216503cba47e12ad',
     1
 );

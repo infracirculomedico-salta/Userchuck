@@ -68,4 +68,4 @@ async def login_page(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("portal.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("portal.main:app", host="0.0.0.0", port=8007, reload=True)

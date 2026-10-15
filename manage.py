@@ -37,7 +37,7 @@ def main():
 
     if comando == "runserver":
         host = "127.0.0.1"
-        port = 8000
+        port = 8007
 
         # Parsear argumentos opcionales como 8000 o 0.0.0.0:8000
         if len(args) > 1:
