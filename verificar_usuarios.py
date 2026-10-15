@@ -4,10 +4,22 @@ Uso en OCI:
     /opt/userchuck/venv311/bin/python /opt/userchuck/verificar_usuarios.py
 """
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+
+# Auto-ejecución con el entorno virtual si se invocó con el python del sistema
+venv_oci = Path("/opt/userchuck/venv311/bin/python")
+venv_win = ROOT / ".venv" / "Scripts" / "python.exe"
+venv_local = ROOT / ".venv" / "bin" / "python"
+venv_target = venv_oci if venv_oci.exists() else (venv_win if venv_win.exists() else (venv_local if venv_local.exists() else None))
+
+if venv_target and Path(sys.executable).resolve() != venv_target.resolve():
+    sys.exit(subprocess.call([str(venv_target), str(ROOT / "verificar_usuarios.py"), *sys.argv[1:]]))
+
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / "sender") not in sys.path:
