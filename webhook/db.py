@@ -85,15 +85,23 @@ def _asegurar_pool() -> oracledb.ConnectionPool:
         return _pool
 
     _asegurar_cliente_oracle()
+
+    def _init_session(conn, tag):
+        schema = os.environ.get("DB_SCHEMA", "sistema")
+        if schema:
+            with conn.cursor() as cur:
+                cur.execute(f"ALTER SESSION SET CURRENT_SCHEMA = {schema}")
+
     _pool = oracledb.create_pool(
-        user=os.environ.get("DB_USER"),
+        user=os.environ.get("DB_USER", "sistema"),
         password=os.environ.get("DB_PASSWORD"),
         dsn=os.environ.get("DB_DSN"),
         min=POOL_MIN,
         max=POOL_MAX,
         increment=1,
+        session_callback=_init_session,
     )
-    logger.info("Pool de conexiones Oracle creado (min=%d, max=%d)", POOL_MIN, POOL_MAX)
+    logger.info("Pool de conexiones Oracle creado (min=%d, max=%d, schema=%s)", POOL_MIN, POOL_MAX, os.environ.get("DB_SCHEMA", "sistema"))
     return _pool
 
 

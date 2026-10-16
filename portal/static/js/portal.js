@@ -858,7 +858,14 @@ async function confirmarYEnviarCampana() {
       }),
     });
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      const texto = await res.text().catch(() => '');
+      throw new Error(`Error en servidor (${res.status}): ${texto || 'Error interno no especificado'}`);
+    }
+
     if (res.ok) {
       alert(`¡Campaña finalizada con éxito!\nTotal enviados: ${data.total_enviados}\nExitosos: ${data.exitosos}\nErrores: ${data.errores}\nLog guardado: ${data.log_archivo}`);
       cerrarModal('modal-wizard-campana');
@@ -867,7 +874,7 @@ async function confirmarYEnviarCampana() {
       alert(`Error al enviar: ${data.detail || 'Ocurrió un problema'}`);
     }
   } catch (e) {
-    alert(`Error de red: ${e}`);
+    alert(`Error de envío: ${e.message || e}`);
   } finally {
     if (btnEnviar) {
       btnEnviar.disabled = false;

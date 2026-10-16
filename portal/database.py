@@ -7,6 +7,7 @@ import csv
 import hashlib
 import logging
 import os
+import re
 import secrets
 import sqlite3
 from contextlib import contextmanager
@@ -18,6 +19,7 @@ import oracledb
 from portal.config import (
     DB_DSN,
     DB_PASSWORD,
+    DB_SCHEMA,
     DB_USER,
     ORACLE_LIB_DIR,
     PORTAL_DIR,
@@ -64,10 +66,12 @@ def verificar_conexion_oracle() -> bool:
             tcp_connect_timeout=2.0,
         )
         with conn.cursor() as cur:
+            if DB_SCHEMA:
+                cur.execute(f"ALTER SESSION SET CURRENT_SCHEMA = {DB_SCHEMA}")
             cur.execute("SELECT 1 FROM dual")
         conn.close()
         _oracle_disponible = True
-        logger.info("Conexión a Oracle OK (OCI)")
+        logger.info("Conexión a Oracle OK (OCI) - Usuario: %s, Esquema: %s", DB_USER, DB_SCHEMA)
     except Exception as e:
         _oracle_disponible = False
         logger.info("Oracle no disponible localmente (%s). Se usará SQLite local.", e)
@@ -255,6 +259,9 @@ class DBManager:
         """Retorna conexión activa y maneja transacciones."""
         if cls.is_oracle():
             conn = oracledb.connect(user=DB_USER, password=DB_PASSWORD, dsn=DB_DSN)
+            if DB_SCHEMA:
+                with conn.cursor() as cur:
+                    cur.execute(f"ALTER SESSION SET CURRENT_SCHEMA = {DB_SCHEMA}")
             try:
                 yield conn
                 conn.commit()
@@ -275,13 +282,29 @@ class DBManager:
             finally:
                 conn.close()
 
+    @staticmethod
+    def _adaptar_params_oracle(sql: str, params: dict | tuple | list):
+        """Si la consulta Oracle usa variables nombradas (:nom) y se pasó una tupla, mapea por orden."""
+        if isinstance(params, dict):
+            return params
+        if isinstance(params, (tuple, list)):
+            vars_in_sql = []
+            for match in re.finditer(r":([a-zA-Z0-9_]+)", sql):
+                v = match.group(1)
+                if v not in vars_in_sql:
+                    vars_in_sql.append(v)
+            if vars_in_sql and len(vars_in_sql) == len(params):
+                return dict(zip(vars_in_sql, params))
+        return params
+
     @classmethod
     def execute_query(cls, sql_oracle: str, sql_sqlite: str, params: dict | tuple = ()):
         """Ejecuta consulta según motor y devuelve lista de diccionarios."""
         with cls.get_connection() as conn:
             cursor = conn.cursor()
             if cls.is_oracle():
-                cursor.execute(sql_oracle, params if isinstance(params, dict) else dict(enumerate(params)))
+                p = cls._adaptar_params_oracle(sql_oracle, params)
+                cursor.execute(sql_oracle, p)
                 columnas = [col[0].lower() for col in cursor.description]
                 filas = cursor.fetchall()
                 resultado = []
@@ -294,9 +317,6 @@ class DBManager:
                 return resultado
             else:
                 p = params
-                if isinstance(params, dict):
-                    # SQLite usa :nombre o lista
-                    p = params
                 cursor.execute(sql_sqlite, p)
                 filas = cursor.fetchall()
                 return [dict(f) for f in filas]
@@ -307,7 +327,8 @@ class DBManager:
         with cls.get_connection() as conn:
             cursor = conn.cursor()
             if cls.is_oracle():
-                cursor.execute(sql_oracle, params if isinstance(params, dict) else dict(enumerate(params)))
+                p = cls._adaptar_params_oracle(sql_oracle, params)
+                cursor.execute(sql_oracle, p)
             else:
                 cursor.execute(sql_sqlite, params)
             return cursor.rowcount

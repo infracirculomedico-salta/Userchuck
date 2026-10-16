@@ -1,19 +1,20 @@
+import os
 import oracledb
 
 oracledb.init_oracle_client(
-    lib_dir="/usr/lib/oracle/21/client64/lib"
+    lib_dir=os.environ.get("ORACLE_LIB_DIR", "/usr/lib/oracle/21/client64/lib")
 )
 
-
 connection = oracledb.connect(
-    user="chuckuser",
-    password="GEno##loina855",
-    dsn="10.1.0.132:1521/pdbcms.sub05141753540.vcnproduccion.oraclevcn.com"
+    user=os.environ.get("DB_USER", "sistema"),
+    password=os.environ.get("DB_PASSWORD", "URQUI##genoloina855"),
+    dsn=os.environ.get("DB_DSN", "10.1.0.132:1521/pdbcms.sub05141753540.vcnproduccion.oraclevcn.com")
 )
 
 print("Conexión a Oracle OK")
 
 cursor = connection.cursor()
+cursor.execute("ALTER SESSION SET CURRENT_SCHEMA = sistema")
 
 cursor.execute("""
     SELECT

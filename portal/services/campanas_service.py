@@ -163,12 +163,16 @@ class CampanasService:
         """
         sql_sq_c = """
             INSERT INTO wsp_campanas (nombre, plantilla, archivo_csv, total_contactos, estado, log_archivo, creado_por, fecha_creacion)
-            VALUES (?, ?, ?, ?, 'EN_PROCESO', ?, ?, CURRENT_TIMESTAMP)
+            VALUES (:nom, :pl, :csv, :tot, 'EN_PROCESO', :log, :usr, CURRENT_TIMESTAMP)
         """
-        DBManager.execute_update(sql_or_c, sql_sq_c, (
-            nombre_campana, nombre_plantilla, archivo_csv, simulacion["se_van_a_enviar"],
-            nombre_log, usuario_actual
-        ))
+        DBManager.execute_update(sql_or_c, sql_sq_c, {
+            "nom": nombre_campana,
+            "pl": nombre_plantilla,
+            "csv": archivo_csv,
+            "tot": simulacion["se_van_a_enviar"],
+            "log": nombre_log,
+            "usr": usuario_actual,
+        })
 
         # Abrir archivo de log para escribir mensaje por mensaje
         with open(ruta_log, mode="w", newline="", encoding="utf-8") as f_log:
@@ -220,12 +224,16 @@ class CampanasService:
         """
         sql_sq_up = """
             UPDATE wsp_campanas
-            SET enviados = ?, exitosos = ?, errores = ?, estado = ?, fecha_finalizacion = CURRENT_TIMESTAMP
-            WHERE log_archivo = ?
+            SET enviados = :env, exitosos = :ex, errores = :er, estado = :st, fecha_finalizacion = CURRENT_TIMESTAMP
+            WHERE log_archivo = :log
         """
-        DBManager.execute_update(sql_or_up, sql_sq_up, (
-            exitosos + errores, exitosos, errores, estado_final, nombre_log
-        ))
+        DBManager.execute_update(sql_or_up, sql_sq_up, {
+            "env": exitosos + errores,
+            "ex": exitosos,
+            "er": errores,
+            "st": estado_final,
+            "log": nombre_log,
+        })
 
         return {
             "ok": True,

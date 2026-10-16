@@ -43,9 +43,10 @@ else:
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Base de Datos Oracle
-DB_USER = os.environ.get("DB_USER", "chuckuser")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "GEno##loina855")
+DB_USER = os.environ.get("DB_USER", "sistema")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "URQUI##genoloina855")
 DB_DSN = os.environ.get("DB_DSN", "10.1.0.132:1521/pdbcms.sub05141753540.vcnproduccion.oraclevcn.com")
+DB_SCHEMA = os.environ.get("DB_SCHEMA", "sistema")
 ORACLE_LIB_DIR = os.environ.get("ORACLE_LIB_DIR", "/usr/lib/oracle/21/client64/lib")
 
 # Meta / WhatsApp Cloud API
