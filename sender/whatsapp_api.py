@@ -306,13 +306,13 @@ def enviar_mensaje_texto(
         "Content-Type": "application/json",
     }
 
-    # Normalizar destino a solo dígitos (Meta espera dígitos sin signos)
-    destino_limpio = re.sub(r"\D", "", str(numero_destino))
+    destino_str = str(numero_destino).strip()
+    if not destino_str.startswith("+"):
+        destino_str = f"+{destino_str}"
 
     payload = {
         "messaging_product": "whatsapp",
-        "recipient_type": "individual",
-        "to": destino_limpio,
+        "to": destino_str,
         "type": "text",
         "text": {
             "preview_url": False,

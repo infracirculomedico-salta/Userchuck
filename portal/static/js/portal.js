@@ -1299,6 +1299,11 @@ async function seleccionarConversacion(waId, scrollAbajo = true) {
         el24hBadge.innerHTML = `<i class="fas fa-lock"></i> Ventana 24h Cerrada`;
         el24hBadge.title = 'Meta requiere responder usando una plantilla oficial aprobada';
       }
+    // Conmutar automáticamente el modo de respuesta según la ventana de Meta
+    if (!data.ventana_24h_activa) {
+      cambiarModoEnvioChat('plantilla');
+    } else {
+      cambiarModoEnvioChat('texto');
     }
 
     // Renderizar mensajes
@@ -1549,6 +1554,21 @@ async function enviarRespuestaChat() {
 
   const waId = AppState.conversacionActiva.wa_id;
   const modo = AppState.modoEnvioChat;
+
+  if (modo === 'texto' && AppState.conversacionActiva && !AppState.conversacionActiva.ventana_24h_activa) {
+    const cambiar = confirm(
+      '⚠️ Atención: La ventana de atención de 24 horas de Meta está CERRADA para este contacto ' +
+      '(el socio no ha enviado mensajes en las últimas 24 horas).\n\n' +
+      'Meta NO entregará respuestas de texto libre mientras la ventana esté cerrada. ' +
+      'Para contactarlo ahora, debes enviar una Plantilla Oficial Aprobada.\n\n' +
+      '¿Deseas cambiar ahora al modo "Usar Plantilla Aprobada"?'
+    );
+    if (cambiar) {
+      cambiarModoEnvioChat('plantilla');
+    }
+    return;
+  }
+
   const btnEnviar = modo === 'texto'
     ? document.getElementById('btn-enviar-texto')
     : document.getElementById('btn-enviar-plantilla-chat');

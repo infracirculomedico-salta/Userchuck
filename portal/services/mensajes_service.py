@@ -389,7 +389,15 @@ class MensajesService:
         Envía un mensaje de respuesta a través de la WhatsApp Cloud API y
         lo persiste en wsp_log_mensajes.
         """
-        wa_id_limpio = re.sub(r"\D", "", str(wa_id))
+        # Normalizar siempre número de destino al estándar E.164 (+549...)
+        norm, _ = normalizar_numero_con_motivo(wa_id)
+        if norm:
+            numero_e164 = norm
+            wa_id_limpio = re.sub(r"\D", "", norm)
+        else:
+            wa_id_limpio = re.sub(r"\D", "", str(wa_id))
+            numero_e164 = f"+{wa_id_limpio}" if not str(wa_id).startswith("+") else str(wa_id)
+
         if not wa_id_limpio:
             return {"ok": False, "error": "Número de WhatsApp de destino inválido"}
 
@@ -404,7 +412,7 @@ class MensajesService:
                 return {"ok": False, "error": "El mensaje de respuesta no puede estar vacío"}
 
             exito, detalle = enviar_mensaje_texto(
-                numero_destino=wa_id_limpio,
+                numero_destino=numero_e164,
                 texto=cuerpo,
                 access_token=META_ACCESS_TOKEN,
                 phone_number_id=META_PHONE_NUMBER_ID,
@@ -441,7 +449,7 @@ class MensajesService:
                 params["nombre"] = limpiar_parametro(nombre_destinatario)
 
             exito, detalle = enviar_plantilla(
-                numero_destino=f"+{wa_id_limpio}",
+                numero_destino=numero_e164,
                 nombre_plantilla=nombre_plantilla,
                 parametros=params,
                 access_token=META_ACCESS_TOKEN,
