@@ -275,3 +275,110 @@ def consultar_plantilla(id_plantilla, access_token):
         return None, f"HTTP {respuesta.status_code}: {error.get('message', respuesta.text)}"
 
     return data, ""
+
+
+def enviar_mensaje_texto(
+    numero_destino: str,
+    texto: str,
+    access_token: str,
+    phone_number_id: str,
+    mensaje_contexto_id: str | None = None,
+) -> tuple[bool, str]:
+    """
+    Envía un mensaje de texto plano vía la WhatsApp Cloud API.
+    Apto para respuestas a socios dentro de la ventana de atención de 24 horas.
+
+    Args:
+        numero_destino: número en formato internacional o local (ej: "+5493874516830").
+        texto: contenido del mensaje a enviar.
+        access_token: token de acceso de Meta.
+        phone_number_id: ID del número de teléfono emisor de WhatsApp Business.
+        mensaje_contexto_id: ID del mensaje original al que se responde (opcional).
+
+    Returns:
+        tuple[bool, str]: (exito, detalle_o_id).
+        Si exito es True, detalle es el message_id devuelto por Meta.
+        Si exito es False, detalle es la descripción clara del error.
+    """
+    url = f"https://graph.facebook.com/{API_VERSION}/{phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    # Normalizar destino a solo dígitos (Meta espera dígitos sin signos)
+    destino_limpio = re.sub(r"\D", "", str(numero_destino))
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": destino_limpio,
+        "type": "text",
+        "text": {
+            "preview_url": False,
+            "body": texto,
+        },
+    }
+
+    if mensaje_contexto_id:
+        payload["context"] = {"message_id": mensaje_contexto_id}
+
+    sesion = obtener_sesion()
+    respuesta = None
+
+    for intento in range(REINTENTOS + 1):
+        try:
+            respuesta = sesion.post(url, headers=headers, json=payload, timeout=15)
+        except requests.RequestException as e:
+            if intento == REINTENTOS:
+                return False, f"Error de conexión con Meta: {e}"
+            espera = _espera_sugerida(None, intento)
+            logger.warning("Error de conexión enviando texto (%s). Reintento %d/%d en %.0fs.", e, intento + 1, REINTENTOS, espera)
+            time.sleep(espera)
+            continue
+
+        if respuesta.status_code not in HTTP_REINTENTABLES:
+            break
+
+        if intento == REINTENTOS:
+            break
+
+        espera = _espera_sugerida(respuesta, intento)
+        logger.warning("Meta respondió HTTP %d en envío de texto. Reintento %d/%d en %.0fs.", respuesta.status_code, intento + 1, REINTENTOS, espera)
+        time.sleep(espera)
+
+    try:
+        data = respuesta.json()
+    except (ValueError, AttributeError):
+        data = {}
+
+    if respuesta and respuesta.ok:
+        try:
+            message_id = data["messages"][0]["id"]
+        except (KeyError, IndexError, TypeError):
+            message_id = ""
+        return True, message_id
+
+    error = {}
+    if isinstance(data, dict):
+        error = data.get("error") or {}
+
+    error_code = error.get("code")
+    error_msg = error.get("message") or (respuesta.text if respuesta else "Sin respuesta")
+
+    if error_code == 131047:
+        return False, "Ventana de 24 horas vencida: El socio no ha enviado mensajes en las últimas 24 horas. Meta exige utilizar una plantilla aprobada para contactarlo."
+
+    status_code = respuesta.status_code if respuesta else 0
+    detalle_partes = [f"HTTP {status_code}", str(error_msg)]
+
+    if "code" in error:
+        detalle_partes.append(f"code={error['code']}")
+    if "error_subcode" in error:
+        detalle_partes.append(f"error_subcode={error['error_subcode']}")
+    error_data = error.get("error_data")
+    if isinstance(error_data, dict) and "details" in error_data:
+        detalle_partes.append(f"detalles={error_data['details']}")
+
+    return False, " | ".join(detalle_partes)
+

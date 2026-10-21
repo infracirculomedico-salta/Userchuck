@@ -23,6 +23,7 @@ from portal.routes.auth_routes import router as auth_router
 from portal.routes.campanas_routes import router as campanas_router
 from portal.routes.contactos_routes import router as contactos_router
 from portal.routes.dashboard_routes import router as dashboard_router
+from portal.routes.mensajes_routes import router as mensajes_router
 from portal.routes.plantillas_routes import router as plantillas_router
 from portal.routes.usuarios_routes import router as usuarios_router
 
@@ -42,6 +43,7 @@ templates = Jinja2Templates(directory=str(PORTAL_DIR / "templates"))
 # Incluir routers de la API
 app.include_router(auth_router)
 app.include_router(dashboard_router)
+app.include_router(mensajes_router)
 app.include_router(contactos_router)
 app.include_router(plantillas_router)
 app.include_router(campanas_router)

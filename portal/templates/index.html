@@ -41,6 +41,11 @@
           <i class="fas fa-paper-plane nav-icon"></i>
           <span>Campañas & Envíos</span>
         </a>
+        <a class="nav-item" data-tab="mensajes">
+          <i class="fas fa-comments nav-icon"></i>
+          <span>Envío de mensajes</span>
+          <span class="nav-badge" id="badge-mensajes-pendientes" style="display:none;">0</span>
+        </a>
         <a class="nav-item" data-tab="usuarios">
           <i class="fas fa-users-cog nav-icon"></i>
           <span>Usuarios del Sistema</span>
@@ -415,6 +420,202 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             SECCIÓN NUEVA: ENVÍO DE MENSAJES & CHAT
+             ========================================== -->
+        <section id="section-mensajes" class="view-section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Envío de Mensajes & Atención al Socio</h1>
+              <p class="section-subtitle">Bandeja de mensajes recibidos, consulta de conversaciones y respuestas oficiales vía WhatsApp</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span class="badge badge-read" style="font-size:12px;">
+                <i class="fab fa-whatsapp" style="color:var(--wsp-green);"></i> Línea Oficial: <strong>+54 9 387 211-1029</strong>
+              </span>
+              <button class="btn btn-secondary btn-sm" onclick="cargarConversaciones()">
+                <i class="fas fa-sync-alt"></i> Actualizar
+              </button>
+            </div>
+          </div>
+
+          <!-- Contenedor Dividido Estilo WhatsApp Web -->
+          <div class="chat-portal-layout">
+
+            <!-- Columna Izquierda: Lista de Mensajes Recibidos y Conversaciones -->
+            <div class="chat-sidebar-panel">
+              <div class="chat-sidebar-header">
+                <div class="search-input-wrap">
+                  <i class="fas fa-search search-icon"></i>
+                  <input type="text" id="input-busqueda-chat" class="search-input" placeholder="Buscar por socio, teléfono o texto..." oninput="filtrarConversaciones()">
+                </div>
+                <div class="chat-filter-tabs">
+                  <button class="chat-filter-btn active" data-filter="todos" onclick="cambiarFiltroChat('todos')">
+                    Todos
+                  </button>
+                  <button class="chat-filter-btn" data-filter="recibidos" onclick="cambiarFiltroChat('recibidos')">
+                    Recibidos
+                  </button>
+                  <button class="chat-filter-btn" data-filter="pendientes" onclick="cambiarFiltroChat('pendientes')">
+                    Pendientes <span class="badge badge-error" id="pill-count-pendientes" style="margin-left:4px; font-size:10px;">0</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="chat-inbox-list" id="lista-conversaciones-chat">
+                <div class="text-center py-5 text-muted">
+                  <i class="fas fa-circle-notch fa-spin fa-2x mb-2" style="color:var(--primary);"></i>
+                  <p>Cargando bandeja de mensajes...</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Columna Derecha: Vista de Conversación y Respuesta -->
+            <div class="chat-conversation-panel">
+
+              <!-- Estado Inicial: Sin conversación seleccionada -->
+              <div id="chat-empty-state" class="chat-empty-placeholder">
+                <div class="empty-icon-wrap">
+                  <i class="fab fa-whatsapp"></i>
+                </div>
+                <h3>Bandeja de Entrada de WhatsApp</h3>
+                <p>Selecciona un mensaje recibido de la lista para ver la conversación completa con el socio y responder en tiempo real.</p>
+                <div class="empty-tips">
+                  <div class="tip-item">
+                    <i class="fas fa-check-circle text-success"></i>
+                    <span>Si el socio escribió en las últimas 24 horas, puedes enviar respuestas de texto libre inmediatas.</span>
+                  </div>
+                  <div class="tip-item">
+                    <i class="fas fa-layer-group text-primary"></i>
+                    <span>Si pasaron más de 24 horas, puedes reanudar el contacto enviando una plantilla oficial aprobada.</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Vista Activa de Conversación -->
+              <div id="chat-active-view" class="chat-active-wrapper" style="display:none;">
+
+                <!-- Header de Conversación -->
+                <div class="chat-active-header">
+                  <div class="chat-contact-main">
+                    <div class="chat-contact-avatar" id="chat-header-avatar">CMS</div>
+                    <div class="chat-contact-details">
+                      <div class="chat-contact-name-row">
+                        <h3 id="chat-header-nombre">Nombre del Médico</h3>
+                        <span id="chat-header-socio-badge" class="badge badge-acepto" style="display:none;">Socio CMS</span>
+                      </div>
+                      <div class="chat-contact-subtext">
+                        <span id="chat-header-telefono" class="contact-phone">+54 9 387 ...</span>
+                        <span id="chat-header-matricula" class="contact-extra text-muted" style="display:none;"></span>
+                        <span id="chat-header-email" class="contact-extra text-muted" style="display:none;"></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="chat-header-status-box">
+                    <div id="chat-header-24h-badge" class="badge badge-read" title="Estado de la ventana de atención al cliente de Meta">
+                      <i class="fas fa-clock"></i> Verificando ventana...
+                    </div>
+                    <button class="btn btn-secondary btn-icon-only btn-sm" onclick="recargarConversacionActiva()" title="Actualizar mensajes">
+                      <i class="fas fa-sync-alt"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Historial de Mensajes (Scrollable) -->
+                <div class="chat-messages-scroll" id="chat-messages-container">
+                  <!-- Los globos de chat se renderizan dinámicamente -->
+                </div>
+
+                <!-- Barra de Cita de Mensaje (oculta por defecto) -->
+                <div id="chat-quote-bar" class="chat-quote-bar" style="display:none;">
+                  <div class="quote-indicator"></div>
+                  <div class="quote-content">
+                    <small class="quote-sender" id="quote-sender-name">Respondiendo a mensaje</small>
+                    <div class="quote-text" id="quote-text-snippet">...</div>
+                  </div>
+                  <button class="btn-cancel-quote" onclick="cancelarCitaMensaje()" title="Cancelar respuesta a mensaje específico">&times;</button>
+                </div>
+
+                <!-- Área de Respuesta y Envío -->
+                <div class="chat-reply-panel">
+                  
+                  <!-- Switch de Modo: Texto Libre vs Plantilla -->
+                  <div class="chat-mode-selector">
+                    <button id="btn-mode-texto" class="chat-mode-btn active" onclick="cambiarModoEnvioChat('texto')">
+                      <i class="fas fa-comment-alt"></i> Respuesta Directa
+                    </button>
+                    <button id="btn-mode-plantilla" class="chat-mode-btn" onclick="cambiarModoEnvioChat('plantilla')">
+                      <i class="fas fa-layer-group"></i> Usar Plantilla Aprobada
+                    </button>
+                  </div>
+
+                  <!-- Modo 1: Texto Libre -->
+                  <div id="chat-composer-texto" class="chat-composer-section">
+                    <div class="chat-input-row">
+                      <textarea id="input-chat-respuesta" class="chat-textarea" placeholder="Escribe una respuesta para el socio... (Ctrl + Enter para enviar)" rows="2" onkeydown="handleChatKeyDown(event)"></textarea>
+                      <button id="btn-enviar-texto" class="btn btn-whatsapp btn-send-chat" onclick="enviarRespuestaChat()" title="Enviar respuesta por WhatsApp">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Enviar</span>
+                      </button>
+                    </div>
+
+                    <!-- Respuestas Rápidas Sugeridas -->
+                    <div class="chat-quick-replies">
+                      <span class="quick-reply-label"><i class="fas fa-bolt"></i> Respuestas Rápidas:</span>
+                      <button type="button" class="quick-reply-chip" onclick="insertarRespuestaRapida('Estimado/a Doctor/a, acusamos recibo de su consulta. En breve le informaremos.')">
+                        Acuse de recibo
+                      </button>
+                      <button type="button" class="quick-reply-chip" onclick="insertarRespuestaRapida('Le confirmamos que su trámite se encuentra en gestión.')">
+                        Trámite en gestión
+                      </button>
+                      <button type="button" class="quick-reply-chip" onclick="insertarRespuestaRapida('Por favor recuerde remitir la documentación faltante para proceder.')">
+                        Solicitar documentación
+                      </button>
+                      <button type="button" class="quick-reply-chip" onclick="insertarRespuestaRapida('¡Muchas gracias por comunicarse con el Círculo Médico de Salta!')">
+                        Cierre cordial
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Modo 2: Plantilla Oficial Meta -->
+                  <div id="chat-composer-plantilla" class="chat-composer-section" style="display:none;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start;">
+                      <div>
+                        <div class="form-group" style="margin-bottom:10px;">
+                          <label class="form-label" style="font-size:12px;">Selecciona la plantilla oficial de Meta:</label>
+                          <select id="chat-select-plantilla" class="form-input" onchange="actualizarVariablesPlantillaChat()">
+                            <!-- Llenado dinámico -->
+                          </select>
+                        </div>
+                        <div id="chat-template-variables-container">
+                          <!-- Inputs dinámicos para las variables -->
+                        </div>
+                      </div>
+                      <div>
+                        <label class="form-label" style="font-size:12px;">Vista previa del mensaje a enviar:</label>
+                        <div class="chat-template-preview-box">
+                          <div id="chat-template-preview-text" class="wsp-bubble" style="font-size:12px; width:100%;">
+                            Selecciona una plantilla para ver el texto.
+                          </div>
+                        </div>
+                        <div style="margin-top:12px; text-align:right;">
+                          <button id="btn-enviar-plantilla-chat" class="btn btn-whatsapp" onclick="enviarRespuestaChat()">
+                            <i class="fab fa-whatsapp"></i> Enviar Plantilla Oficial
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
           </div>
         </section>
 

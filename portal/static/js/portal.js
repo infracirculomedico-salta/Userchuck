@@ -14,6 +14,11 @@ const AppState = {
   archivoCsvSeleccionado: null,
   campanas: [],
   usuarios: [],
+  conversaciones: [],
+  conversacionActiva: null,
+  filtroChat: 'todos',
+  mensajeCitar: null,
+  modoEnvioChat: 'texto',
   wizard: {
     paso: 1,
     plantilla: null,
@@ -45,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     cargarDashboard(),
     cargarPlantillas(),
     cargarArchivosContactos(),
+    actualizarContadorPendientes(),
   ]);
 });
 
@@ -159,6 +165,7 @@ function cambiarSeccion(tabId) {
   else if (tabId === 'contactos') cargarVistaContactos();
   else if (tabId === 'plantillas') cargarPlantillas();
   else if (tabId === 'campanas') cargarCampanas();
+  else if (tabId === 'mensajes') cargarConversaciones();
   else if (tabId === 'usuarios') cargarUsuarios();
   else if (tabId === 'logs') cargarLogsEnVivo();
 }
@@ -1081,4 +1088,596 @@ function abrirModal(idModal) {
 function cerrarModal(idModal) {
   const modal = document.getElementById(idModal);
   if (modal) modal.classList.remove('active');
+}
+
+// =====================================================================
+// SECCIÓN NUEVA: ENVÍO DE MENSAJES & CHAT EN VIVO
+// =====================================================================
+
+async function actualizarContadorPendientes() {
+  try {
+    const res = await fetch('/api/mensajes/conversaciones?filtro=pendientes');
+    if (!res.ok) return;
+    const data = await res.json();
+    const pendientes = data.conversaciones ? data.conversaciones.length : 0;
+    const badgeSidebar = document.getElementById('badge-mensajes-pendientes');
+    const pillCount = document.getElementById('pill-count-pendientes');
+    if (badgeSidebar) {
+      if (pendientes > 0) {
+        badgeSidebar.textContent = pendientes;
+        badgeSidebar.style.display = 'inline-block';
+      } else {
+        badgeSidebar.style.display = 'none';
+      }
+    }
+    if (pillCount) pillCount.textContent = pendientes;
+  } catch (e) {
+    console.error('Error actualizando contador de pendientes:', e);
+  }
+}
+
+async function cargarConversaciones() {
+  const contenedor = document.getElementById('lista-conversaciones-chat');
+  if (contenedor && (!AppState.conversaciones || AppState.conversaciones.length === 0)) {
+    contenedor.innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="fas fa-circle-notch fa-spin fa-2x mb-2" style="color:var(--primary);"></i>
+        <p style="font-size:13px;">Cargando mensajes recibidos...</p>
+      </div>`;
+  }
+
+  try {
+    const res = await fetch(`/api/mensajes/conversaciones?filtro=${AppState.filtroChat}`);
+    if (!res.ok) throw new Error('Error al consultar mensajes');
+    const data = await res.json();
+    AppState.conversaciones = data.conversaciones || [];
+
+    // Actualizar badge de pendientes
+    actualizarContadorPendientes();
+
+    // Renderizar lista filtrada
+    filtrarConversaciones();
+
+    // Si había una conversación seleccionada, refrescarla
+    if (AppState.conversacionActiva) {
+      const existe = AppState.conversaciones.find((c) => c.wa_id === AppState.conversacionActiva.wa_id);
+      if (existe) {
+        seleccionarConversacion(AppState.conversacionActiva.wa_id, false);
+      }
+    }
+  } catch (e) {
+    console.error('Error cargando conversaciones:', e);
+    if (contenedor) {
+      contenedor.innerHTML = `
+        <div class="text-center py-4 text-danger" style="font-size:13px;">
+          <i class="fas fa-exclamation-triangle mb-2"></i>
+          <p>No se pudieron cargar las conversaciones.</p>
+          <button class="btn btn-secondary btn-sm mt-2" onclick="cargarConversaciones()">Reintentar</button>
+        </div>`;
+    }
+  }
+}
+
+function filtrarConversaciones() {
+  const busqueda = (document.getElementById('input-busqueda-chat')?.value || '').toLowerCase().trim();
+  const contenedor = document.getElementById('lista-conversaciones-chat');
+  if (!contenedor) return;
+
+  let filtradas = AppState.conversaciones;
+  if (busqueda) {
+    filtradas = filtradas.filter((c) => {
+      const matchNombre = (c.nombre || '').toLowerCase().includes(busqueda);
+      const matchWa = (c.wa_id || '').includes(busqueda);
+      const matchTexto = (c.ultimo_mensaje?.texto || '').toLowerCase().includes(busqueda);
+      const matchMat = (c.socio_datos?.matricula || '').toLowerCase().includes(busqueda);
+      return matchNombre || matchWa || matchTexto || matchMat;
+    });
+  }
+
+  if (filtradas.length === 0) {
+    contenedor.innerHTML = `
+      <div class="text-center py-5 text-muted" style="padding: 30px 15px;">
+        <i class="far fa-comment-dots fa-3x mb-3" style="opacity:0.4;"></i>
+        <p style="font-size:13px; font-weight:600;">No se encontraron mensajes</p>
+        <small style="color:var(--text-muted);">Prueba cambiando el filtro o la búsqueda</small>
+      </div>`;
+    return;
+  }
+
+  contenedor.innerHTML = filtradas.map((c) => {
+    const esActiva = AppState.conversacionActiva && AppState.conversacionActiva.wa_id === c.wa_id;
+    const iniciales = obtenerIniciales(c.nombre);
+    const fechaRelativa = formatearFechaRelativa(c.ultimo_mensaje?.fecha);
+    const esEntrante = c.ultimo_mensaje?.direccion === 'ENTRANTE';
+    const tipo = c.ultimo_mensaje?.tipo;
+
+    let iconoTipo = '';
+    if (tipo === 'image') iconoTipo = '<i class="fas fa-image"></i> ';
+    else if (tipo === 'interactive') iconoTipo = '<i class="fas fa-hand-pointer"></i> ';
+    else if (tipo === 'template') iconoTipo = '<i class="fas fa-layer-group"></i> ';
+    else if (!esEntrante) iconoTipo = '<i class="fas fa-reply" style="font-size:10px;"></i> ';
+
+    const badgeEstado = c.pendiente
+      ? '<span class="badge badge-error" style="font-size:10px;">Pendiente</span>'
+      : (c.tiene_entrantes ? '<span class="badge badge-acepto" style="font-size:10px;"><i class="fas fa-check"></i> Respondido</span>' : '');
+
+    const badgeSocio = c.es_socio && c.socio_datos?.matricula
+      ? `<span class="badge badge-read" style="font-size:10px;">MP ${c.socio_datos.matricula}</span>`
+      : '';
+
+    return `
+      <div class="chat-inbox-item ${esActiva ? 'active' : ''}" onclick="seleccionarConversacion('${c.wa_id}')">
+        <div class="chat-inbox-avatar ${c.es_socio ? 'avatar-doctor' : ''}">
+          ${iniciales}
+          ${c.ventana_24h_activa ? '<div class="avatar-online-dot" title="Ventana 24h activa"></div>' : ''}
+        </div>
+        <div class="chat-inbox-info">
+          <div class="chat-inbox-top-row">
+            <span class="chat-inbox-name" title="${c.nombre}">${c.nombre}</span>
+            <span class="chat-inbox-date">${fechaRelativa}</span>
+          </div>
+          <div class="chat-inbox-meta-row">
+            ${badgeSocio}
+            <span class="text-muted" style="font-size:11px;">+${c.wa_id}</span>
+          </div>
+          <div class="chat-inbox-preview-row">
+            <span class="chat-inbox-snippet" title="${c.ultimo_mensaje?.texto || ''}">
+              ${iconoTipo}${escapeHtml(c.ultimo_mensaje?.texto || '')}
+            </span>
+            ${badgeEstado}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function cambiarFiltroChat(filtro) {
+  AppState.filtroChat = filtro;
+  document.querySelectorAll('.chat-filter-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-filter') === filtro);
+  });
+  cargarConversaciones();
+}
+
+async function seleccionarConversacion(waId, scrollAbajo = true) {
+  try {
+    const res = await fetch(`/api/mensajes/conversacion/${waId}`);
+    if (!res.ok) throw new Error('Error al cargar historial de conversación');
+    const data = await res.json();
+    AppState.conversacionActiva = data;
+
+    // Actualizar sidebar activo
+    document.querySelectorAll('.chat-inbox-item').forEach((item) => {
+      const onclickAttr = item.getAttribute('onclick') || '';
+      item.classList.toggle('active', onclickAttr.includes(waId));
+    });
+
+    // Mostrar panel activo y ocultar placeholder
+    const emptyState = document.getElementById('chat-empty-state');
+    const activeView = document.getElementById('chat-active-view');
+    if (emptyState) emptyState.style.display = 'none';
+    if (activeView) activeView.style.display = 'flex';
+
+    // Rellenar cabecera
+    const elNombre = document.getElementById('chat-header-nombre');
+    const elAvatar = document.getElementById('chat-header-avatar');
+    const elTelefono = document.getElementById('chat-header-telefono');
+    const elMatricula = document.getElementById('chat-header-matricula');
+    const elEmail = document.getElementById('chat-header-email');
+    const elSocioBadge = document.getElementById('chat-header-socio-badge');
+    const el24hBadge = document.getElementById('chat-header-24h-badge');
+
+    if (elNombre) elNombre.textContent = data.nombre;
+    if (elAvatar) elAvatar.textContent = obtenerIniciales(data.nombre);
+    if (elTelefono) elTelefono.textContent = `+${data.wa_id}`;
+
+    if (data.es_socio && data.socio_datos) {
+      if (elSocioBadge) elSocioBadge.style.display = 'inline-block';
+      if (elMatricula) {
+        elMatricula.textContent = data.socio_datos.matricula ? `MP: ${data.socio_datos.matricula}` : '';
+        elMatricula.style.display = data.socio_datos.matricula ? 'inline' : 'none';
+      }
+      if (elEmail) {
+        elEmail.textContent = data.socio_datos.email ? `• ${data.socio_datos.email}` : '';
+        elEmail.style.display = data.socio_datos.email ? 'inline' : 'none';
+      }
+    } else {
+      if (elSocioBadge) elSocioBadge.style.display = 'none';
+      if (elMatricula) elMatricula.style.display = 'none';
+      if (elEmail) elEmail.style.display = 'none';
+    }
+
+    // Ventana 24 horas
+    if (el24hBadge) {
+      if (data.ventana_24h_activa) {
+        el24hBadge.className = 'badge badge-acepto';
+        el24hBadge.innerHTML = `<i class="fas fa-bolt"></i> Ventana 24h Activa (${data.tiempo_restante_24h})`;
+        el24hBadge.title = 'Puedes responder con texto libre o con plantilla';
+      } else {
+        el24hBadge.className = 'badge badge-error';
+        el24hBadge.innerHTML = `<i class="fas fa-lock"></i> Ventana 24h Cerrada`;
+        el24hBadge.title = 'Meta requiere responder usando una plantilla oficial aprobada';
+      }
+    }
+
+    // Renderizar mensajes
+    renderizarHistorialMensajes(data.mensajes);
+
+    // Preparar selector de plantillas si está en modo plantilla
+    if (AppState.modoEnvioChat === 'plantilla') {
+      actualizarVariablesPlantillaChat();
+    }
+
+    // Scroll al final
+    if (scrollAbajo) {
+      setTimeout(() => {
+        const scrollArea = document.getElementById('chat-messages-container');
+        if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
+      }, 50);
+    }
+  } catch (e) {
+    console.error('Error cargando conversación:', e);
+    alert('No se pudo cargar el historial del mensaje.');
+  }
+}
+
+function recargarConversacionActiva() {
+  if (AppState.conversacionActiva) {
+    seleccionarConversacion(AppState.conversacionActiva.wa_id, false);
+  }
+  cargarConversaciones();
+}
+
+function renderizarHistorialMensajes(mensajes) {
+  const container = document.getElementById('chat-messages-container');
+  if (!container) return;
+
+  if (!mensajes || mensajes.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="far fa-comments fa-2x mb-2" style="opacity:0.5;"></i>
+        <p style="font-size:13px;">No hay mensajes registrados en esta conversación.</p>
+      </div>`;
+    return;
+  }
+
+  let html = '';
+  let fechaAnterior = '';
+
+  mensajes.forEach((m) => {
+    // Agrupador por día
+    const fechaSoloDia = m.fecha ? m.fecha.split(' ')[0] : '';
+    if (fechaSoloDia && fechaSoloDia !== fechaAnterior) {
+      html += `
+        <div class="chat-bubble-wrap system">
+          <div class="wsp-date-pill">${formatearFechaDia(fechaSoloDia)}</div>
+        </div>`;
+      fechaAnterior = fechaSoloDia;
+    }
+
+    const esEntrante = m.direccion === 'ENTRANTE';
+    const hora = m.fecha ? m.fecha.substring(11, 16) : '';
+
+    // Manejo de eventos de status de campañas salientes
+    if (!esEntrante && m.tipo === 'status') {
+      html += `
+        <div class="chat-bubble-wrap system">
+          <div class="chat-bubble-box system-pill">
+            <i class="fas fa-info-circle"></i> Notificación de entrega: <strong>${m.texto}</strong> (${hora})
+          </div>
+        </div>`;
+      return;
+    }
+
+    let checkmarkHtml = '';
+    if (!esEntrante) {
+      const st = (m.estado_status || 'sent').toLowerCase();
+      if (st === 'read') {
+        checkmarkHtml = '<span class="chat-checkmarks read" title="Leído"><i class="fas fa-check-double"></i></span>';
+      } else if (st === 'delivered') {
+        checkmarkHtml = '<span class="chat-checkmarks" title="Entregado"><i class="fas fa-check-double"></i></span>';
+      } else if (st === 'failed') {
+        checkmarkHtml = '<span class="text-danger" title="Error de entrega"><i class="fas fa-exclamation-circle"></i></span>';
+      } else {
+        checkmarkHtml = '<span class="chat-checkmarks" title="Enviado"><i class="fas fa-check"></i></span>';
+      }
+    }
+
+    let contenidoHtml = escapeHtml(m.texto);
+    if (m.tipo === 'image') {
+      contenidoHtml = `
+        <div style="font-weight:600; color:var(--primary); margin-bottom:4px;">
+          <i class="fas fa-image"></i> [Imagen / Foto de Credencial]
+        </div>
+        <div>${escapeHtml(m.texto || 'Archivo adjunto recibido')}</div>`;
+    } else if (m.tipo === 'interactive') {
+      contenidoHtml = `
+        <div style="font-weight:600; color:var(--success); margin-bottom:4px;">
+          <i class="fas fa-hand-pointer"></i> [Respuesta Interactiva]
+        </div>
+        <div>${escapeHtml(m.texto)}</div>`;
+    } else if (m.tipo === 'template') {
+      contenidoHtml = `
+        <div style="font-size:10.5px; font-weight:700; color:var(--primary); margin-bottom:4px;">
+          <i class="fas fa-layer-group"></i> Plantilla Oficial Meta
+        </div>
+        <div>${contenidoHtml}</div>`;
+    }
+
+    const textoEscapeCitar = (m.texto || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const nombreRemitente = esEntrante ? (AppState.conversacionActiva?.nombre || 'Socio') : 'Círculo Médico';
+
+    html += `
+      <div class="chat-bubble-wrap ${esEntrante ? 'incoming' : 'outgoing'}">
+        <div class="chat-bubble-box ${esEntrante ? 'incoming' : 'outgoing'}">
+          ${esEntrante ? `<div class="chat-bubble-sender">${nombreRemitente}</div>` : ''}
+          <div class="chat-bubble-text">${contenidoHtml}</div>
+          <div class="chat-bubble-footer">
+            <span>${hora}</span>
+            ${checkmarkHtml}
+          </div>
+          ${esEntrante ? `
+            <button class="chat-bubble-action-btn" onclick="citarMensaje('${m.id_log}', '${nombreRemitente}', '${textoEscapeCitar}', '${m.wsp_msg_id}')" title="Responder a este mensaje">
+              <i class="fas fa-reply"></i>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function citarMensaje(idLog, remitente, texto, wspMsgId) {
+  AppState.mensajeCitar = { idLog, remitente, texto, wspMsgId };
+  const quoteBar = document.getElementById('chat-quote-bar');
+  const quoteSender = document.getElementById('quote-sender-name');
+  const quoteText = document.getElementById('quote-text-snippet');
+
+  if (quoteSender) quoteSender.textContent = `Respondiendo a ${remitente}`;
+  if (quoteText) quoteText.textContent = texto;
+  if (quoteBar) quoteBar.style.display = 'flex';
+
+  const input = document.getElementById('input-chat-respuesta');
+  if (input) input.focus();
+}
+
+function cancelarCitaMensaje() {
+  AppState.mensajeCitar = null;
+  const quoteBar = document.getElementById('chat-quote-bar');
+  if (quoteBar) quoteBar.style.display = 'none';
+}
+
+function cambiarModoEnvioChat(modo) {
+  AppState.modoEnvioChat = modo;
+  const btnTexto = document.getElementById('btn-mode-texto');
+  const btnPlantilla = document.getElementById('btn-mode-plantilla');
+  const composerTexto = document.getElementById('chat-composer-texto');
+  const composerPlantilla = document.getElementById('chat-composer-plantilla');
+
+  if (modo === 'texto') {
+    if (btnTexto) btnTexto.classList.add('active');
+    if (btnPlantilla) btnPlantilla.classList.remove('active');
+    if (composerTexto) composerTexto.style.display = 'block';
+    if (composerPlantilla) composerPlantilla.style.display = 'none';
+  } else {
+    if (btnTexto) btnTexto.classList.remove('active');
+    if (btnPlantilla) btnPlantilla.classList.add('active');
+    if (composerTexto) composerTexto.style.display = 'none';
+    if (composerPlantilla) composerPlantilla.style.display = 'block';
+    cargarSelectPlantillasChat();
+  }
+}
+
+function cargarSelectPlantillasChat() {
+  const select = document.getElementById('chat-select-plantilla');
+  if (!select) return;
+
+  if (select.children.length === 0 && AppState.plantillas.length > 0) {
+    select.innerHTML = AppState.plantillas.map((p) => `
+      <option value="${p.nombre}">${p.nombre} (${p.categoria || 'OFICIAL'})</option>
+    `).join('');
+  }
+  actualizarVariablesPlantillaChat();
+}
+
+function actualizarVariablesPlantillaChat() {
+  const select = document.getElementById('chat-select-plantilla');
+  const varsContainer = document.getElementById('chat-template-variables-container');
+  if (!select || !varsContainer) return;
+
+  const nombrePlantilla = select.value;
+  const plantilla = AppState.plantillas.find((p) => p.nombre === nombrePlantilla);
+  if (!plantilla) return;
+
+  const vars = plantilla.variables || [];
+  const socioNombre = AppState.conversacionActiva?.nombre || '';
+
+  varsContainer.innerHTML = vars.map((v) => {
+    let valorDefecto = '';
+    if (v === 'nombre') valorDefecto = socioNombre;
+    return `
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label" style="font-size:11px; margin-bottom:2px;">Variable {{${v}}}:</label>
+        <input type="text" class="form-input chat-template-var-input" data-var="${v}" value="${escapeHtml(valorDefecto)}" placeholder="Valor para ${v}..." oninput="actualizarPreviewPlantillaChat()">
+      </div>
+    `;
+  }).join('');
+
+  actualizarPreviewPlantillaChat();
+}
+
+function actualizarPreviewPlantillaChat() {
+  const select = document.getElementById('chat-select-plantilla');
+  const previewText = document.getElementById('chat-template-preview-text');
+  if (!select || !previewText) return;
+
+  const plantilla = AppState.plantillas.find((p) => p.nombre === select.value);
+  if (!plantilla) return;
+
+  let cuerpo = plantilla.cuerpo || plantilla.descripcion || '';
+  document.querySelectorAll('.chat-template-var-input').forEach((input) => {
+    const varName = input.getAttribute('data-var');
+    const val = input.value.trim() || `[${varName}]`;
+    cuerpo = cuerpo.split(`{{${varName}}}`).join(val);
+  });
+
+  previewText.innerHTML = cuerpo ? escapeHtml(cuerpo) : '<em>Vista previa del mensaje</em>';
+}
+
+function insertarRespuestaRapida(texto) {
+  const input = document.getElementById('input-chat-respuesta');
+  if (!input) return;
+  input.value = texto;
+  input.focus();
+}
+
+function handleChatKeyDown(event) {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    enviarRespuestaChat();
+  }
+}
+
+async function enviarRespuestaChat() {
+  if (!AppState.conversacionActiva) {
+    alert('Por favor selecciona una conversación para responder.');
+    return;
+  }
+
+  const waId = AppState.conversacionActiva.wa_id;
+  const modo = AppState.modoEnvioChat;
+  const btnEnviar = modo === 'texto'
+    ? document.getElementById('btn-enviar-texto')
+    : document.getElementById('btn-enviar-plantilla-chat');
+
+  let payload = {
+    wa_id: waId,
+    tipo_envio: modo,
+    wsp_msg_id_contexto: AppState.mensajeCitar?.wspMsgId || null,
+  };
+
+  if (modo === 'texto') {
+    const textarea = document.getElementById('input-chat-respuesta');
+    const texto = (textarea?.value || '').trim();
+    if (!texto) {
+      alert('Por favor escribe un mensaje de respuesta.');
+      if (textarea) textarea.focus();
+      return;
+    }
+    payload.texto = texto;
+  } else {
+    const select = document.getElementById('chat-select-plantilla');
+    const nombrePlantilla = select?.value;
+    if (!nombrePlantilla) {
+      alert('Por favor selecciona una plantilla.');
+      return;
+    }
+    payload.nombre_plantilla = nombrePlantilla;
+    payload.parametros_plantilla = {};
+    document.querySelectorAll('.chat-template-var-input').forEach((input) => {
+      const v = input.getAttribute('data-var');
+      payload.parametros_plantilla[v] = input.value.trim();
+    });
+  }
+
+  if (btnEnviar) {
+    btnEnviar.disabled = true;
+    btnEnviar.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Enviando...';
+  }
+
+  try {
+    const res = await fetch('/api/mensajes/responder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      if (data.es_error_24h) {
+        const cambiar = confirm(
+          '⚠️ La ventana de 24 horas para respuestas libres de Meta está cerrada.\n\n' +
+          'Para contactar al socio debes usar una plantilla oficial aprobada.\n\n' +
+          '¿Deseas cambiar ahora al modo de Plantilla Oficial?'
+        );
+        if (cambiar) {
+          cambiarModoEnvioChat('plantilla');
+        }
+      } else {
+        alert(`Error al enviar mensaje: ${data.error || 'Respuesta fallida de Meta'}`);
+      }
+      return;
+    }
+
+    // Éxito: Limpiar input y cita
+    if (modo === 'texto') {
+      const textarea = document.getElementById('input-chat-respuesta');
+      if (textarea) textarea.value = '';
+    }
+    cancelarCitaMensaje();
+
+    // Recargar historial y lista
+    await seleccionarConversacion(waId, true);
+    await cargarConversaciones();
+  } catch (e) {
+    console.error('Error enviando respuesta:', e);
+    alert(`Error de conexión al enviar mensaje: ${e}`);
+  } finally {
+    if (btnEnviar) {
+      btnEnviar.disabled = false;
+      btnEnviar.innerHTML = modo === 'texto'
+        ? '<i class="fas fa-paper-plane"></i> <span>Enviar</span>'
+        : '<i class="fab fa-whatsapp"></i> Enviar Plantilla Oficial';
+    }
+  }
+}
+
+// Utilidades de formato
+function formatearFechaRelativa(fechaStr) {
+  if (!fechaStr) return '';
+  try {
+    const limpia = fechaStr.split('.')[0].replace('T', ' ');
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const fechaDia = limpia.split(' ')[0];
+    const hora = limpia.substring(11, 16);
+    if (fechaDia === hoyStr) return hora;
+    const partes = fechaDia.split('-');
+    return `${partes[2]}/${partes[1]}`;
+  } catch (e) {
+    return '';
+  }
+}
+
+function formatearFechaDia(diaStr) {
+  if (!diaStr) return 'Fecha';
+  try {
+    const hoyStr = new Date().toISOString().split('T')[0];
+    if (diaStr === hoyStr) return 'HOY';
+    const partes = diaStr.split('-');
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const mes = meses[parseInt(partes[1], 10) - 1] || partes[1];
+    return `${partes[2]} de ${mes} ${partes[0]}`;
+  } catch (e) {
+    return diaStr;
+  }
+}
+
+function obtenerIniciales(nombre) {
+  if (!nombre) return 'CM';
+  const palabras = nombre.trim().replace(/^Dr\.\s*|^Dra\.\s*/i, '').split(/\s+/);
+  if (palabras.length >= 2) {
+    return (palabras[0][0] + palabras[1][0]).toUpperCase();
+  }
+  return palabras[0].substring(0, 2).toUpperCase();
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
