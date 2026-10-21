@@ -147,12 +147,12 @@ class MensajesService:
                     COUNT(*) as total_mensajes,
                     SUM(CASE WHEN direccion = 'ENTRANTE' THEN 1 ELSE 0 END) as total_entrantes,
                     MAX(CASE WHEN direccion = 'ENTRANTE' THEN id_log ELSE NULL END) as ultimo_entrante_id,
-                    MAX(CASE WHEN direccion = 'SALIENTE' AND tipo_mensaje != 'status' THEN id_log ELSE NULL END) as ultimo_saliente_id,
+                    MAX(CASE WHEN direccion = 'SALIENTE' AND (tipo_mensaje IS NULL OR tipo_mensaje != 'status') THEN id_log ELSE NULL END) as ultimo_saliente_id,
                     MAX(CASE WHEN direccion = 'ENTRANTE' THEN fecha_registro ELSE NULL END) as ultima_fecha_entrante,
-                    MAX(CASE WHEN direccion = 'ENTRANTE' AND wa_name IS NOT NULL AND wa_name != '' THEN wa_name ELSE NULL END) as wa_name_entrante,
-                    MAX(id_log) as max_id
+                    MAX(CASE WHEN direccion = 'ENTRANTE' AND wa_name IS NOT NULL AND LENGTH(TRIM(wa_name)) > 0 THEN wa_name ELSE NULL END) as wa_name_entrante,
+                    COALESCE(MAX(CASE WHEN tipo_mensaje IS NULL OR tipo_mensaje != 'status' THEN id_log ELSE NULL END), MAX(id_log)) as max_id
                 FROM wsp_log_mensajes
-                WHERE wa_id IS NOT NULL AND wa_id != ''
+                WHERE wa_id IS NOT NULL AND LENGTH(TRIM(wa_id)) > 0
                 GROUP BY wa_id
             ) agg
             JOIN wsp_log_mensajes l ON l.id_log = agg.max_id
@@ -162,10 +162,15 @@ class MensajesService:
         filas = DBManager.execute_query(sql_base, sql_base)
         conversaciones = []
         termino = busqueda.lower().strip() if (busqueda and isinstance(busqueda, str)) else None
-        filtro_str = filtro if isinstance(filtro, str) else None
+        if termino == "":
+            termino = None
+        filtro_str = (filtro or "todos").lower().strip()
 
         for f in filas:
             wa_id = str(f.get("wa_id") or "").strip()
+            if not wa_id:
+                continue
+
             digitos = re.sub(r"\D", "", wa_id)
             socio = padron.get(digitos) or padron.get(wa_id) or {}
 
@@ -187,16 +192,30 @@ class MensajesService:
 
             # Cálculo de ventana de 24 horas
             ventana_24h_activa = False
-            fecha_entrante_str = str(f.get("ultima_fecha_entrante") or "")
-            if fecha_entrante_str:
+            fecha_entrante = f.get("ultima_fecha_entrante")
+            if fecha_entrante:
                 try:
-                    # Limpiar strings de fecha para parsear
-                    limpia = fecha_entrante_str.split(".")[0].replace("T", " ")
-                    dt_entrante = datetime.strptime(limpia, "%Y-%m-%d %H:%M:%S")
+                    if isinstance(fecha_entrante, datetime):
+                        dt_entrante = fecha_entrante
+                        if dt_entrante.tzinfo is not None:
+                            dt_entrante = dt_entrante.replace(tzinfo=None)
+                    else:
+                        limpia = str(fecha_entrante).split(".")[0].replace("T", " ")
+                        dt_entrante = datetime.strptime(limpia, "%Y-%m-%d %H:%M:%S")
                     segundos_transcurridos = (datetime.now() - dt_entrante).total_seconds()
                     ventana_24h_activa = (0 <= segundos_transcurridos <= 86400)
                 except Exception:
                     ventana_24h_activa = False
+
+            ultimo_texto = f.get("ultimo_texto") or ""
+            ultimo_estado = f.get("ultimo_estado")
+            if not ultimo_estado:
+                if f.get("ultimo_tipo") == "status":
+                    ultimo_estado = ultimo_texto
+                elif f.get("ultima_direccion") == "ENTRANTE":
+                    ultimo_estado = "RECIBIDO"
+                else:
+                    ultimo_estado = "sent"
 
             item = {
                 "wa_id": wa_id,
@@ -213,8 +232,8 @@ class MensajesService:
                     "id_log": f.get("ultimo_id"),
                     "direccion": f.get("ultima_direccion"),
                     "tipo": f.get("ultimo_tipo"),
-                    "texto": f.get("ultimo_texto") or "",
-                    "estado": f.get("ultimo_estado") or "",
+                    "texto": ultimo_texto,
+                    "estado": ultimo_estado,
                     "fecha": str(f.get("ultima_fecha") or ""),
                 },
             }
@@ -227,7 +246,7 @@ class MensajesService:
 
             # Búsqueda
             if termino:
-                buscables = f"{wa_id} {nombre_mostrado} {f.get('wa_name') or ''} {socio.get('matricula', '')} {socio.get('dni', '')} {f.get('ultimo_texto') or ''}".lower()
+                buscables = f"{wa_id} {nombre_mostrado} {f.get('wa_name') or ''} {socio.get('matricula', '')} {socio.get('dni', '')} {ultimo_texto}".lower()
                 if termino not in buscables:
                     continue
 
@@ -242,8 +261,11 @@ class MensajesService:
         ordenado cronológicamente, con trazabilidad de entregas y datos de perfil.
         """
         padron = _obtener_padron_socios()
-        digitos = re.sub(r"\D", "", wa_id)
+        digitos = re.sub(r"\D", "", str(wa_id))
         socio = padron.get(digitos) or padron.get(wa_id) or {}
+
+        wa_id_limpio = digitos
+        wa_id_con_mas = f"+{wa_id_limpio}" if wa_id_limpio else wa_id
 
         sql_mensajes = """
             SELECT 
@@ -258,11 +280,15 @@ class MensajesService:
                 estado_status,
                 fecha_registro
             FROM wsp_log_mensajes
-            WHERE wa_id = :wa_id
+            WHERE wa_id = :w1 OR wa_id = :w2 OR wa_id = :w3
             ORDER BY id_log ASC
         """
 
-        filas = DBManager.execute_query(sql_mensajes, sql_mensajes, {"wa_id": wa_id})
+        filas = DBManager.execute_query(sql_mensajes, sql_mensajes, {
+            "w1": wa_id,
+            "w2": wa_id_limpio,
+            "w3": wa_id_con_mas,
+        })
 
         # Mapear estados de entrega por wsp_msg_id para salientes
         estados_por_msg_id = {}
